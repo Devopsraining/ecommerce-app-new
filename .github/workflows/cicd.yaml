@@ -13,33 +13,37 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+    outputs:
+      tagname: ${{ steps.tag.outputs.tagname }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Tag
+        id: tag
+        run: echo "tagname=${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_DEVOPS_CREDENTIALS }}
 
-      - name: Set image tag name
-        id: tagname
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build Image
         run: |
-          TAGNAME=$(echo "$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER")
-          echo TAGNAME=$TAGNAME
-          echo "tagname=$TAGNAME" >> $GITHUB_OUTPUT
-      - uses: satackey/action-docker-layer-caching@v0.0.11
-      # Ignore the failure of a step and avoid terminating the job.
-        continue-on-error: true
+          docker build ./frontend \
+          -f frontend/Dockerfile \
+          -t $REGISTRY/$PROJECT/$APP:${{ steps.tag.outputs.tagname }}
 
-      - name: Build Docker image
-        run: docker build . --file frontend/Dockerfile --tag $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
-
-    # Push the Docker image to Google Container Registry
-      - name: Push Docker image
-        run: docker push $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
+      - name: Push Image
+        run: |
+          docker push $REGISTRY/$PROJECT/$APP:${{ steps.tag.outputs.tagname }}
 
   # deploy:
   #   needs: build-and-push
