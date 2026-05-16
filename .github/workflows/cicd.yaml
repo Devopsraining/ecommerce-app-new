@@ -32,6 +32,12 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_DEVOPS_CREDENTIALS }}
 
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker
+
       - name: Set image tag name
         id: tagname
         run: |
@@ -43,7 +49,7 @@ jobs:
         continue-on-error: true
 
       - name: Build Docker image
-        run: docker build . --file frontend/Dockerfile --tag $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
+        run: docker build ./frontend --file frontend/Dockerfile --tag $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
 
     # Push the Docker image to Google Container Registry
       - name: Push Docker image
