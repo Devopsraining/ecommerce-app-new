@@ -55,48 +55,28 @@ jobs:
       - name: Push Docker image
         run: docker push $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
 
-  # deploy:
-  #   needs: build-and-push
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout workspace
-  #       uses: actions/checkout@v4
+  update-helm:
+    needs: build-and-push
+    runs-on: ubuntu-latest
 
-  #     - name: Install SSH client
-  #       run: sudo apt-get update && sudo apt-get install -y openssh-client
+    steps:
+      - name: Checkout Helm Repo
+        uses: actions/checkout@v3
+        with:
+          repository: Devopsraining/fraud-helm
+          token: ${{ secrets.GIT_PAT }}
 
-  #     - name: Configure SSH key
-  #       run: |
-  #         mkdir -p ~/.ssh
-  #         echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-  #         chmod 600 ~/.ssh/id_rsa
+      - name: Update values.yaml
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: 'ecom-app-frontend/values.yaml'
+          repository: Devopsraining/fraud-helm
+          token: ${{ secrets.GIT_PAT }}
+          propertyPath: 'image.tag'
+          value: ${{ needs.build-and-push.outputs.tagname }}
+          branch: main
+          commitChange: true
+          createPR: false
+          message: "Update Generator image tag to ${{ needs.build-and-push.outputs.tagname }}"
 
-  #     - name: Deploy docker-compose to VM
-  #       env:
-  #         IMAGE_TAG: ${{ env.IMAGE_TAG }}
-  #         ARTIFACT_REGISTRY_URL: ${{ env.ARTIFACT_REGISTRY_URL }}
-  #         VM_HOST: ${{ secrets.VM_SSH_HOST }}
-  #         VM_USER: ${{ secrets.VM_SSH_USER }}
-  #         VM_PORT: ${{ secrets.VM_SSH_PORT }}
-  #       run: |
-  #         ssh_port="${VM_PORT:-22}"
-
-  #         cat > /tmp/docker-compose.deploy.yml <<EOF
-  #         version: "3"
-  #         services:
-  #           backend:
-  #             image: ${ARTIFACT_REGISTRY_URL}/backend:${IMAGE_TAG}
-  #             ports:
-  #               - "5000:5000"
-  #           frontend:
-  #             image: ${ARTIFACT_REGISTRY_URL}/frontend:${IMAGE_TAG}
-  #             ports:
-  #               - "3000:3000"
-  #             depends_on:
-  #               - backend
-  #         EOF
-
-  #         scp -o StrictHostKeyChecking=no -P "${ssh_port}" /tmp/docker-compose.deploy.yml "${VM_USER}@${VM_HOST}:/tmp/docker-compose.deploy.yml"
-
-  #         ssh -o StrictHostKeyChecking=no -p "${ssh_port}" "${VM_USER}@${VM_HOST}" \
-  #           'docker-compose -f /tmp/docker-compose.deploy.yml pull && docker-compose -f /tmp/docker-compose.deploy.yml up -d'
+  
