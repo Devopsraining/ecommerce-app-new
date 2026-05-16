@@ -8,6 +8,14 @@ body {
   padding: 20px;
   text-align: center;
 }
+.nav {
+  margin-top: 10px;
+}
+.nav a {
+  color: #fff;
+  margin: 0 10px;
+  text-decoration: none;
+}
 .products {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -30,4 +38,26 @@ button {
   border: none;
   padding: 10px;
   cursor: pointer;
+}
+
+.cart {
+  padding: 20px 40px;
+}
+.cart-item {
+  display: flex;
+  gap: 15px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+.cart-item img { width: 80px; height: 80px; object-fit: cover }
+.cart-footer { margin-top: 20px }
+.checkout { padding: 20px 40px }
+.checkout-form { display: grid; gap: 10px; max-width: 420px }
+.checkout-form input, .checkout-form textarea { padding: 8px }
+
+@media (max-width: 900px) {
+  .products { grid-template-columns: repeat(2, 1fr) }
+}
+@media (max-width: 500px) {
+  .products { grid-template-columns: 1fr }
 }

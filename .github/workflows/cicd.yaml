@@ -4,46 +4,50 @@ on:
   push:
     paths:
       - 'frontend/**'
-    branches: [ "main" ]
+    branches: [ "feature" ]
 
 env:
   REGISTRY: gcr.io
-  PROJECT: devops-492107
+  PROJECT: DevOps
   APP: ecommerce-frontend
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-
-    outputs:
-      tagname: ${{ steps.tag.outputs.tagname }}
-
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: trstringer/manual-approval@v1
+        timeout-minutes: 15
+        with:
+          secret: ${{ secrets.GIT_TOKEN }}
+          approvers: charanya310
+          minimum-approvals: 1
+          issue-title: "Deploying to ecommerce frontend prod"
+          issue-body: "Please approve or deny the deployment"
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Generate Tag
-        id: tag
-        run: echo "tagname=${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
-
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_DEVOPS_CREDENTIALS }}
 
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker
-        run: gcloud auth configure-docker --quiet
-
-      - name: Build Image
+      - name: Set image tag name
+        id: tagname
         run: |
-          docker build ./frontend \
-          -f frontend/Dockerfile \
-          -t $REGISTRY/$PROJECT/$APP:${{ steps.tag.outputs.tagname }}
+          TAGNAME=$(echo "$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER")
+          echo TAGNAME=$TAGNAME
+          echo "tagname=$TAGNAME" >> $GITHUB_OUTPUT
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+      # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
 
-      - name: Push Image
-        run: |
-          docker push $REGISTRY/$PROJECT/$APP:${{ steps.tag.outputs.tagname }}
+      - name: Build Docker image
+        run: docker build . --file frontend/Dockerfile --tag $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
+
+    # Push the Docker image to Google Container Registry
+      - name: Push Docker image
+        run: docker push $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
 
   # deploy:
   #   needs: build-and-push
