@@ -1,0 +1,82 @@
+name: CI/CD Build, Push & Deploy for ecommerce-app backend
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+    branches: [ "main" ]
+
+env:
+  REGISTRY: gcr.io
+  PROJECT: devops-492107
+  APP: ecommerce-backend
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tagname: ${{ steps.tag.outputs.tagname }}
+    steps:
+      # - uses: trstringer/manual-approval@v1
+      #   timeout-minutes: 15
+      #   with:
+      #     secret: ${{ secrets.GIT_TOKEN }}
+      #     approvers: charanya310
+      #     minimum-approvals: 1
+      #     issue-title: "Deploying to ecommerce frontend prod"
+      #     issue-body: "Please approve or deny the deployment"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Tag
+        id: tag
+        run: echo "tagname=${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_DEVOPS_CREDENTIALS }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker
+
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+      # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
+
+      - name: Build Docker image
+        run: docker build ./backend --file backend/Dockerfile --tag $REGISTRY/$PROJECT/$APP/$APP:${{ steps.tag.outputs.tagname }}
+
+    # Push the Docker image to Google Container Registry
+      - name: Push Docker image
+        run: docker push $REGISTRY/$PROJECT/$APP/$APP:${{ steps.tag.outputs.tagname }}
+
+  update-helm:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Helm Repo
+        uses: actions/checkout@v3
+        with:
+          repository: Devopsraining/fraud-helm
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: Update values.yaml
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: 'ecom-app-backend/values.yaml'
+          repository: Devopsraining/fraud-helm
+          token: ${{ secrets.GIT_TOKEN }}
+          propertyPath: 'image.tag'
+          value: ${{ needs.build-and-push.outputs.tagname }}
+          branch: main
+          commitChange: true
+          createPR: false
+          message: "Update Generator image tag to ${{ needs.build-and-push.outputs.tagname }}"
+
+  
