@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      tagname: ${{ steps.tag.outputs.tagname }}
     steps:
       # - uses: trstringer/manual-approval@v1
       #   timeout-minutes: 15
@@ -27,6 +29,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Generate Tag
+        id: tag
+        run: echo "tagname=${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
@@ -38,22 +44,16 @@ jobs:
       - name: Configure Docker for GCP
         run: gcloud auth configure-docker
 
-      - name: Set image tag name
-        id: tagname
-        run: |
-          TAGNAME=$(echo "$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER")
-          echo TAGNAME=$TAGNAME
-          echo "tagname=$TAGNAME" >> $GITHUB_OUTPUT
       - uses: satackey/action-docker-layer-caching@v0.0.11
       # Ignore the failure of a step and avoid terminating the job.
         continue-on-error: true
 
       - name: Build Docker image
-        run: docker build ./frontend --file frontend/Dockerfile --tag $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
+        run: docker build ./frontend --file frontend/Dockerfile --tag $REGISTRY/$PROJECT/$APP/$APP:${{ steps.tag.outputs.tagname }}
 
     # Push the Docker image to Google Container Registry
       - name: Push Docker image
-        run: docker push $REGISTRY/$PROJECT/$APP/$APP:$GITHUB_REF_NAME-$GITHUB_RUN_NUMBER
+        run: docker push $REGISTRY/$PROJECT/$APP/$APP:${{ steps.tag.outputs.tagname }}
 
   update-helm:
     needs: build-and-push
