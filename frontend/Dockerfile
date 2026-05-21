@@ -22,5 +22,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-## Force frontend container crash on startup by requiring a missing dependency
+# Force frontend container crash on startup by requiring a missing dependency
 CMD ["node", "-e", "try { require('react-router-dom'); } catch (err) { console.error(err); process.exit(1); } console.error('Frontend startup crash test'); process.exit(1);"]
